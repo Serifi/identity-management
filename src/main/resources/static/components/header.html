@@ -1,0 +1,112 @@
+<header class="main-header">
+    <div>
+        <h2>KV Service Engineering</h2>
+    </div>
+    <div class="header-right">
+        <div class="user">
+            <i class="fas fa-user fa-lg"></i>
+            <div class="user-details">
+                <span id="user-name">Name</span>
+                <span id="user-role">Role</span>
+            </div>
+        </div>
+        <i class="fas fa-sign-out-alt fa-lg logout" onclick="logout()"></i>
+    </div>
+</header>
+<style>
+    .main-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 24px;
+        background-color: #F5F5F5;
+    }
+
+    .header-right {
+        display: flex;
+        align-items: center;
+    }
+
+    .user {
+        display: flex;
+        align-items: center;
+        margin-right: 16px;
+    }
+
+    .user-details {
+        margin-left: 16px;
+        margin-right: 16px;
+        text-align: left;
+    }
+
+    #user-name {
+        font-weight: bold;
+    }
+
+    .user-details span {
+        display: block;
+        line-height: 1.2;
+    }
+
+    .logout {
+        cursor: pointer;
+        color: #003A3A;
+    }
+
+    .logout:hover {
+        color: #FF0000;
+    }
+</style>
+<script>
+    /**
+     * Fetches user data from the server.
+     * Sends a GET request to '/user' to retrieve user information.
+     * @async
+     * @function
+     * @throws Will log an error if the fetch request fails.
+     */
+    async function fetchUser() {
+        try {
+            const response = await fetch('/user', {
+                method: 'GET',
+                headers: {'Content-Type': 'application/json'},
+                credentials: 'same-origin'
+            });
+            if (!response.ok) throw new Error('Failed to fetch user info');
+            const data = await response.json();
+            displayUser(data);
+        } catch (error) {
+            console.error('Error:', error);
+        }
+    }
+
+    /**
+     * Displays the user information on the page.
+     * Updates the content of HTML elements with user name and role.
+     * @param {Object} user - The user object containing name and role properties.
+     */
+    function displayUser(user) {
+        document.getElementById('user-name').textContent = user.name;
+        document.getElementById('user-role').textContent = capitalizeFirstLetter(user.role.toString());
+    }
+
+    /**
+     * Capitalizes the first letter of the user's role.
+     * Converts the first character of the role string to uppercase.
+     * @param {string} role - The role string to capitalize.
+     * @returns {string} The role string with the first letter capitalized.
+     */
+    function capitalizeFirstLetter(role) {
+        return String(role).charAt(0).toUpperCase() + String(role).slice(1);
+    }
+
+    /**
+     * Redirects the user to the logout page.
+     * Navigates the browser to the '/logout' endpoint.
+     */
+    function logout() {
+        window.location.href = '/logout';
+    }
+
+    fetchUser();
+</script>

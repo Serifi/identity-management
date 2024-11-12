@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/webjars/font-awesome/6.4.0/css/all.min.css" />
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f9f9f9;
+            margin: 0;
+            padding: 0;
+        }
+        h2 {
+            text-align: center;
+            font-size: 24px;
+            color: #003A3A;
+            margin: 20px 0;
+        }
+        .content {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 0 20px;
+            font-size: 16px;
+            color: #333;
+            margin-bottom: 20px;
+        }
+        button {
+            padding: 8px 16px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #007BFF;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            margin-left: 10px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .submission-list-entry {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #fff;
+            margin: 10px 0;
+            cursor: pointer;
+        }
+        .submission-details {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            padding-right: 10px;
+        }
+        .submission-details p {
+            margin: 5px 0;
+        }
+        .submission-grade {
+            font-weight: bold;
+            text-align: center;
+            min-width: 100px;
+            padding: 10px;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .delete-button {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            background-color: #FF4747;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .delete-button:hover {
+            background-color: darkred;
+        }
+        .delete-button i {
+            color: white;
+            font-size: 17px;
+        }
+        #upload-section {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+    </style>
+    <script>
+        /**
+         * Loads the header HTML from a separate component and appends it to the page.
+         * Additionally, it processes and appends any scripts that are included in the header.
+         */
+        async function loadHeader() {
+            try {
+                const response = await fetch('../components/header.html');
+                if (!response.ok) {
+                    throw new Error('Header konnte nicht geladen werden.');
+                }
+                const headerHtml = await response.text();
+                const headerContainer = document.getElementById('header-container');
+                headerContainer.innerHTML = headerHtml;
+
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(headerHtml, 'text/html');
+                const scripts = doc.querySelectorAll('script');
+                scripts.forEach(script => {
+                    const newScript = document.createElement('script');
+                    if (script.src) {
+                        newScript.src = script.src;
+                    } else {
+                        newScript.textContent = script.textContent;
+                    }
+                    document.body.appendChild(newScript);
+                });
+            } catch (error) {
+                console.error('Fehler beim Laden des Headers:', error);
+            }
+        }
+
+        /**
+         * Fetches the list of submissions from the server and displays them on the page.
+         * Handles the error if fetching the submissions fails.
+         */
+        async function fetchSubmissions() {
+            try {
+                const response = await fetch('/submissions/my', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'same-origin'
+                });
+                if (!response.ok) throw new Error('Fehler beim Abrufen der Abgaben.');
+
+                const submissions = await response.json();
+                displaySubmissions(submissions);
+            } catch (error) {
+                console.error('Fehler beim Abrufen der Abgaben:', error);
+            }
+        }
+
+        /**
+         * Handles the submission of a file to the server.
+         * If a file is selected, it is uploaded via a POST request.
+         * If the upload is successful, the submissions list is refreshed.
+         */
+        async function uploadSubmission() {
+            const fileInput = document.getElementById("fileInput");
+            const file = fileInput.files[0];
+            if (!file) {
+                alert("Bitte wählen Sie eine Datei aus.");
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append("file", file);
+
+            try {
+                const response = await fetch("/submissions/submit", {
+                    method: "POST",
+                    credentials: "same-origin",
+                    body: formData
+                });
+                if (!response.ok) throw new Error("Fehler beim Hochladen der Datei.");
+
+                alert("Datei erfolgreich hochgeladen!");
+                await fetchSubmissions();
+
+                fileInput.value = ""; // Resets the file input field
+            } catch (error) {
+                console.error("Fehler beim Hochladen der Abgabe:", error);
+                alert("Fehler beim Hochladen der Datei.");
+            }
+        }
+
+        /**
+         * Formats the grade text for display.
+         * This includes replacing certain substrings with accented characters,
+         * capitalizing words, and determining the background color and text color
+         * based on whether the grade indicates a failing result.
+         * @param {string} grade - The grade to be formatted.
+         * @returns {Object} An object containing the formatted grade text and style information.
+         */
+        function formatGrade(grade) {
+            if (!grade) return { gradeText: "-", backgroundColor: "transparent", textColor: "black" };
+
+            grade = grade.replace(/_/g, ' ')
+                .replace(/AE/g, 'Ä')
+                .replace(/OE/g, 'Ö')
+                .replace(/UE/g, 'Ü')
+                .replace(/ae/g, 'ä')
+                .replace(/oe/g, 'ö')
+                .replace(/ue/g, 'ü');
+
+            grade = grade.toLowerCase()
+                .split(" ")
+                .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                .join(" ");
+
+            const isFailing = grade === "Nicht Genügend";
+            const backgroundColor = isFailing ? "#FFEFF6" : "#E6F7E5";
+            const textColor = isFailing ? "#C23B6E" : "#2E8B57";
+
+            return { gradeText: grade, backgroundColor, textColor };
+        }
+
+        /**
+         * Displays the list of submissions on the page.
+         * Creates an HTML element for each submission and appends it to the submission container.
+         * @param {Array} submissions - An array of submission objects.
+         */
+        function displaySubmissions(submissions) {
+            const container = document.getElementById('submissions-container');
+            container.innerHTML = '';
+
+            if (submissions.length === 0) {
+                container.innerHTML = '<p>Keine Abgaben vorhanden.</p>';
+                return;
+            }
+
+            submissions.forEach(submission => {
+                const { gradeText, backgroundColor, textColor } = formatGrade(submission.grading);
+                const submissionElement = document.createElement('div');
+                submissionElement.classList.add('submission-list-entry');
+                submissionElement.innerHTML = `
+                    <div class="submission-details">
+                        <p><strong>Abgabe ${submission.id}</strong></p>
+                        <p><strong>Datei:</strong> ${submission.fileName}</p>
+                    </div>
+                    <div class="submission-grade" style="background-color: ${backgroundColor}; color: ${textColor};">
+                        ${gradeText}
+                    </div>
+                `;
+
+                if (!submission.grading) {
+                    submissionElement.innerHTML += `
+                        <button class="delete-button" onclick="deleteSubmission(${submission.id}, event)">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    `;
+                }
+
+                submissionElement.onclick = () => {
+                    window.location.href = `/student/detail.html?submissionId=${submission.id}`;
+                };
+                container.appendChild(submissionElement);
+            });
+        }
+
+        /**
+         * Deletes a submission after user confirmation.
+         * Sends a DELETE request to remove the submission from the server.
+         * @param {number} submissionId - The ID of the submission to be deleted.
+         * @param {Event} event - The event that triggered the delete action.
+         */
+        async function deleteSubmission(submissionId, event) {
+            event.stopPropagation();
+            if (confirm("Möchten Sie diese Abgabe wirklich löschen?")) {
+                try {
+                    const response = await fetch(`/submissions/delete/${submissionId}`, {
+                        method: 'DELETE',
+                        credentials: 'same-origin'
+                    });
+                    if (!response.ok) throw new Error("Fehler beim Löschen der Abgabe.");
+
+                    alert("Abgabe erfolgreich gelöscht!");
+                    await fetchSubmissions();
+                } catch (error) {
+                    console.error("Fehler beim Löschen der Abgabe:", error);
+                    alert("Fehler beim Löschen der Abgabe.");
+                }
+            }
+        }
+
+        /**
+         * Event listener that runs when the DOM content is fully loaded.
+         * It loads the header HTML and fetches the user's submissions to display on the page.
+         */
+        document.addEventListener('DOMContentLoaded', async function () {
+            await loadHeader();
+            await fetchSubmissions();
+        });
+    </script>
+</head>
+<body>
+<div id="header-container"></div>
+<h2>Abgaben</h2>
+<div class="content" id="upload-section">
+    <input type="file" id="fileInput" />
+    <button onclick="uploadSubmission()">Abgabe hinzufügen</button>
+</div>
+
+<div class="content" id="submissions">
+    <div id="submissions-container"></div>
+</div>
+</body>
+</html>

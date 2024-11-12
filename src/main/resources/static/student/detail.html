@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/webjars/font-awesome/6.4.0/css/all.min.css" />
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f9f9f9;
+            margin: 0;
+            padding: 0;
+        }
+        h2 {
+            text-align: center;
+            font-size: 24px;
+            color: #003A3A;
+            margin: 20px 0;
+        }
+        .content {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 0 20px;
+            font-size: 16px;
+            color: #333;
+            margin-bottom: 20px;
+        }
+        button {
+            padding: 8px 16px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #007BFF;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            margin-left: 10px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .submission-detail {
+            padding: 20px;
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .submission-grade {
+            font-weight: bold;
+            text-align: center;
+            min-width: 100px;
+            padding: 10px;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .submission-file-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+        .download-button {
+            padding: 8px 16px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #007BFF;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            margin-left: 10px;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .download-button:hover {
+            background-color: #0056b3;
+        }
+        .form-group {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-top: 20px;
+        }
+        input[type="file"] {
+            margin-right: 10px;
+        }
+    </style>
+    <script>
+        /**
+         * Loads the header from an external HTML file and inserts it into the page.
+         * This function fetches the header HTML from '../components/header.html',
+         * inserts it into the 'header-container' element, and loads any JavaScript within the fetched header content.
+         * @throws Error if the header content fails to load.
+         */
+        async function loadHeader() {
+            try {
+                const response = await fetch('../components/header.html');
+                if (!response.ok) {
+                    throw new Error('Header konnte nicht geladen werden.');
+                }
+                const headerHtml = await response.text();
+                const headerContainer = document.getElementById('header-container');
+                headerContainer.innerHTML = headerHtml;
+
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(headerHtml, 'text/html');
+                const scripts = doc.querySelectorAll('script');
+                scripts.forEach(script => {
+                    const newScript = document.createElement('script');
+                    if (script.src) {
+                        newScript.src = script.src;
+                    } else {
+                        newScript.textContent = script.textContent;
+                    }
+                    document.body.appendChild(newScript);
+                });
+            } catch (error) {
+                console.error('Fehler beim Laden des Headers:', error);
+            }
+        }
+
+        /**
+         * Fetches and displays submission details for a given submission ID.
+         * This function sends a GET request to retrieve submission details and passes them to the display function.
+         * @param {string} submissionId - The unique ID of the submission to fetch.
+         * @throws Error if the submission details cannot be retrieved.
+         */
+        async function fetchSubmissionDetails(submissionId) {
+            try {
+                let response = await fetch(`/submissions/${submissionId}`);
+                if (!response.ok) throw new Error('Fehler beim Laden der Abgabedetails.');
+
+                const submission = await response.json();
+                displaySubmissionDetails(submission);
+            } catch (error) {
+                console.error('Fehler beim Abrufen der Abgabedetails:', error);
+            }
+        }
+
+        /**
+         * Formats the grading text and returns the display properties for the grade.
+         * This function replaces specific text patterns and applies color formatting based on the grade.
+         * @param {string|null} grade - The grade text to format; may be null if the grade is ungraded.
+         * @returns {Object} An object containing the formatted grade text, background color, and text color.
+         */
+        function formatGrade(grade) {
+            if (!grade) return { gradeText: null, backgroundColor: "#E6F7E5", textColor: "#2E8B57" };
+
+            grade = grade.replace(/_/g, ' ')
+                .replace(/AE/g, 'Ä')
+                .replace(/OE/g, 'Ö')
+                .replace(/UE/g, 'Ü')
+                .replace(/ae/g, 'ä')
+                .replace(/oe/g, 'ö')
+                .replace(/ue/g, 'ü');
+
+            grade = grade.toLowerCase()
+                .split(" ")
+                .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                .join(" ");
+
+            const isFailing = grade === "Nicht Genügend";
+            const backgroundColor = isFailing ? "#FFEFF6" : "#E6F7E5";
+            const textColor = isFailing ? "#C23B6E" : "#2E8B57";
+
+            return { gradeText: grade, backgroundColor, textColor };
+        }
+
+        /**
+         * Renders the submission details and grade information in the UI.
+         * This function inserts the submission details into the 'submission-details' element,
+         * including file name, download link, and grading information.
+         * @param {Object} submission - The submission object with properties like fileName and grading.
+         */
+        function displaySubmissionDetails(submission) {
+            const { gradeText, backgroundColor, textColor } = formatGrade(submission.grading);
+            const container = document.getElementById('submission-details');
+
+            container.innerHTML = `
+                <h2>Details für Abgabe ${submission.id}</h2>
+                <div class="submission-detail">
+                    <div class="submission-file-container">
+                        <p><strong>Datei:</strong> ${submission.fileName}</p>
+                        <a href="/submissions/file/${submission.id}" class="download-button">Herunterladen</a>
+                    </div>
+                    ${gradeText ? `<div class="submission-grade" style="background-color: ${backgroundColor}; color: ${textColor};">
+                        ${gradeText}
+                    </div>` : ""}
+                </div>
+            `;
+
+            if (!submission.grading) {
+                container.innerHTML += `
+                    <div class="form-group">
+                        <input type="file" id="fileInput" name="file" />
+                        <button class="file-button" onclick="updateFile(${submission.id})">Aktualisieren</button>
+                    </div>
+                `;
+            }
+        }
+
+        /**
+         * Uploads a new file to update the existing submission.
+         * Sends a PUT request to the server with the new file, and reloads the page upon success.
+         * @param {string} submissionId - The ID of the submission to update.
+         * @throws Error if the file update fails.
+         */
+        async function updateFile(submissionId) {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            if (!file) {
+                alert('Bitte wählen Sie eine Datei aus.');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch(`/submissions/update/${submissionId}`, {
+                    method: 'PUT',
+                    body: formData
+                });
+                if (!response.ok) throw new Error('Fehler beim Aktualisieren der Datei.');
+
+                alert('Datei erfolgreich aktualisiert!');
+                location.reload();
+            } catch (error) {
+                console.error('Fehler beim Aktualisieren der Datei:', error);
+                alert('Es gab einen Fehler beim Aktualisieren der Datei.');
+            }
+        }
+
+        /**
+         * Initializes the page, loading the header and submission details.
+         * This function runs after the DOM content is fully loaded, retrieving the submission ID from URL parameters.
+         */
+        document.addEventListener('DOMContentLoaded', async function () {
+            await loadHeader();
+            const urlParams = new URLSearchParams(window.location.search);
+            const submissionId = urlParams.get('submissionId');
+            if (submissionId) {
+                await fetchSubmissionDetails(submissionId);
+            } else {
+                console.error('Keine Submission ID gefunden.');
+            }
+        });
+    </script>
+</head>
+<body>
+<div id="header-container"></div>
+<div class="content">
+    <div id="submission-details"></div>
+</div>
+</body>
+</html

@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LVAService - KV Service Engineering</title>
+    <link rel="stylesheet" href="/webjars/font-awesome/6.4.0/css/all.min.css" />
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f9f9f9;
+            margin: 0;
+            padding: 0;
+        }
+        h2 {
+            text-align: center;
+            font-size: 24px;
+            color: #003A3A;
+            margin: 20px 0;
+        }
+        .content {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 0 20px;
+            font-size: 16px;
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .student-list-entry {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #fff;
+            margin: 10px 0;
+            cursor: pointer;
+        }
+        .student-details {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            padding-right: 10px;
+        }
+        .student-details p {
+            margin: 5px 0;
+        }
+        .delete-button {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            background-color: #FF4747;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .delete-button:hover {
+            background-color: darkred;
+        }
+        .delete-button i {
+            color: white;
+            font-size: 17px;
+        }
+    </style>
+
+    <script>
+        /**
+         * Loads the header component from an external HTML file and appends any script elements it contains.
+         * This function fetches '../components/header.html', inserts it into the 'header-container' element,
+         * and loads any JavaScript within the fetched header content.
+         * @throws Error if the header fails to load.
+         */
+        async function loadHeader() {
+            try {
+                const response = await fetch('../components/header.html');
+                if (!response.ok) throw new Error('Header konnte nicht geladen werden.');
+                const headerHtml = await response.text();
+                document.getElementById('header-container').innerHTML = headerHtml;
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(headerHtml, 'text/html');
+                const scripts = doc.querySelectorAll('script');
+                scripts.forEach(script => {
+                    const newScript = document.createElement('script');
+                    if (script.src) newScript.src = script.src;
+                    else newScript.textContent = script.textContent;
+                    document.body.appendChild(newScript);
+                });
+            } catch (error) {
+                console.error('Fehler beim Laden des Headers:', error);
+            }
+        }
+
+        /**
+         * Displays a list of students in the UI.
+         * This function populates the 'students-container' element with the list of students.
+         * Each student entry includes name, email, and a delete button.
+         * @param {Array} students - Array of student objects, each containing firstName, lastName, and email properties.
+         * @param {string} [message=''] - Optional message to display at the top of the student list.
+         */
+        function displayStudents(students, message = '') {
+            const container = document.getElementById('students-container');
+            container.innerHTML = '';
+
+            if (message) {
+                const messageElement = document.createElement('div');
+                messageElement.classList.add('message');
+                messageElement.innerText = message;
+                container.appendChild(messageElement);
+            }
+
+            if (students.length === 0) {
+                container.innerHTML = '<p>Keine Studenten vorhanden.</p>';
+                return;
+            }
+
+            students.forEach(student => {
+                const studentElement = document.createElement('div');
+                studentElement.classList.add('student-list-entry');
+                studentElement.innerHTML = `
+                    <div class="student-details">
+                        <p><strong>Student:</strong> ${student.firstName} ${student.lastName}</p>
+                        <p><strong>Email:</strong> ${student.email}</p>
+                    </div>
+                    <button class="delete-button" onclick="deleteUser('${student.id}', event)">
+                        <i class="fas fa-xmark"></i>
+                    </button>
+                `;
+                studentElement.onclick = () => {
+                    window.location.href = `/lecturer/detail.html?email=${encodeURIComponent(student.email)}`;
+                };
+                container.appendChild(studentElement);
+            });
+        }
+
+        /**
+         * Fetches the list of students from the server.
+         * Sends a GET request to '/students' endpoint and displays the result in the UI.
+         * @throws Error if the student list fails to load.
+         */
+        async function fetchStudents() {
+            try {
+                const response = await fetch('/students', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'same-origin'
+                });
+
+                if (!response.ok) throw new Error('Fehler beim Abrufen der Studentenliste.');
+
+                const students = await response.json();
+
+                if (Array.isArray(students)) {
+                    displayStudents(students);
+                } else {
+                    console.error('Unerwartetes Format der Rückgabedaten', students);
+                }
+            } catch (error) {
+                console.error('Fehler beim Abrufen der Studentenliste:', error);
+            }
+        }
+
+        /**
+         * Deletes a student by their ID.
+         * Sends a DELETE request to '/user/{userId}', and upon success, refreshes the student list.
+         * If the deletion fails, an error message is displayed.
+         * @param {string} userId - The unique ID of the student to delete.
+         * @param {Event} event - The click event to prevent bubbling.
+         */
+        async function deleteUser(userId, event) {
+            event.stopPropagation();
+            if (confirm("Möchten Sie diesen Studenten wirklich abmelden?")) {
+                try {
+                    const response = await fetch(`/user/${userId}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        credentials: 'same-origin'
+                    });
+
+                    if (!response.ok) throw new Error('Fehler beim Löschen des Benutzers.');
+
+                    alert('Student wurde erfolgreich abgemeldet.');
+                    await fetchStudents();
+                } catch (error) {
+                    console.error('Fehler beim Löschen des Benutzers:', error);
+                    alert('Es gab ein Problem beim Abmelden des Studenten.');
+                }
+            }
+        }
+
+        /**
+         * Initializes the page by loading the header and fetching the student list on page load.
+         * The DOMContentLoaded event ensures these actions occur only after the DOM is fully loaded.
+         */
+        document.addEventListener('DOMContentLoaded', async function () {
+            await loadHeader();
+            await fetchStudents();
+        });
+    </script>
+</head>
+<body>
+<div id="header-container"></div>
+<h2>Studenten</h2>
+<div class="content" id="students">
+    <div id="students-container"></div>
+</div>
+</body>
+</html>

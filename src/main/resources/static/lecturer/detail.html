@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/webjars/font-awesome/6.4.0/css/all.min.css" />
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f9f9f9;
+            margin: 0;
+            padding: 0;
+        }
+
+        h2 {
+            text-align: center;
+            font-size: 24px;
+            color: #003A3A;
+            margin: 20px 0;
+        }
+
+        .content {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 0 20px;
+            font-size: 16px;
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        .submission-list-entry {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #fff;
+            margin: 10px 0;
+            cursor: pointer;
+        }
+
+        .submission-details {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            padding-right: 10px;
+        }
+
+        .submission-details p {
+            margin: 5px 0;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .download-button,
+        .grade-button {
+            padding: 8px 14px;
+            font-size: 15px;
+            cursor: pointer;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            transition: background-color 0.2s;
+        }
+
+        .download-button {
+            background-color: #007BFF;
+        }
+
+        .download-button:hover {
+            background-color: #0056b3;
+        }
+
+        .grade-button {
+            background-color: #28a745;
+        }
+
+        .grade-button:hover {
+            background-color: #218838;
+        }
+
+        .grade-button:disabled {
+            background-color: #c0c0c0;
+            cursor: not-allowed;
+        }
+
+    </style>
+    <script>
+        /**
+         * Loads the header content from an external HTML file and inserts it into the DOM.
+         * Parses any scripts found in the loaded content to ensure they are executed.
+         * @async
+         * @function
+         * @throws Will log an error if the header fails to load.
+         */
+        async function loadHeader() {
+            try {
+                const response = await fetch('../components/header.html');
+                if (!response.ok) throw new Error('Header konnte nicht geladen werden.');
+                const headerHtml = await response.text();
+                document.getElementById('header-container').innerHTML = headerHtml;
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(headerHtml, 'text/html');
+                const scripts = doc.querySelectorAll('script');
+                scripts.forEach(script => {
+                    const newScript = document.createElement('script');
+                    if (script.src) newScript.src = script.src;
+                    else newScript.textContent = script.textContent;
+                    document.body.appendChild(newScript);
+                });
+            } catch (error) {
+                console.error('Fehler beim Laden des Headers:', error);
+            }
+        }
+
+        /**
+         * Fetches submissions for a user by email from the server.
+         * Sends a request to the backend to retrieve the list of submissions for the provided email.
+         * @async
+         * @function
+         * @param {string} email - The email of the user whose submissions are to be fetched.
+         * @throws Will log an error if fetching submissions fails.
+         */
+        async function fetchUserSubmissions(email) {
+            try {
+                const response = await fetch(`/submissions/user/${email}`);
+                if (!response.ok) throw new Error('Fehler beim Laden der Benutzerabgaben.');
+                const submissions = await response.json();
+                displaySubmissions(submissions);
+            } catch (error) {
+                console.error('Fehler beim Abrufen der Benutzerabgaben:', error);
+            }
+        }
+
+        /**
+         * Formats a grading value to a human-readable German description.
+         * Maps internal grading codes to corresponding German grading terms.
+         * @function
+         * @param {string} grade - The internal grading code to be formatted.
+         * @returns {string} A human-readable German string representing the grading.
+         */
+        function formatGrade(grade) {
+            if (!grade) return "Noch keine Benotung";
+            const gradeMap = {
+                "SEHR_GUT": "Sehr Gut",
+                "GUT": "Gut",
+                "BEFRIEDIGEND": "Befriedigend",
+                "GENUEGEND": "Genügend",
+                "NICHT_GENUEGEND": "Nicht Genügend"
+            };
+            return gradeMap[grade] || grade;
+        }
+
+        /**
+         * Displays a list of submissions in the DOM.
+         * Creates HTML elements for each submission and appends them to the container.
+         * @function
+         * @param {Array} submissions - The array of submission objects to display.
+         */
+        function displaySubmissions(submissions) {
+            const container = document.getElementById('submissions-container');
+            container.innerHTML = '';
+
+            if (submissions.length === 0) {
+                container.innerHTML = '<p>Keine Abgaben vorhanden.</p>';
+                return;
+            }
+
+            submissions.forEach(submission => {
+                const gradeText = formatGrade(submission.grading);
+                const submissionElement = document.createElement('div');
+                submissionElement.classList.add('submission-list-entry');
+
+                const gradeButton = !submission.grading ? `
+                    <button class="grade-button" onclick="openGradeModal(${submission.id})">Bewerten</button>
+                ` : '';
+
+                submissionElement.innerHTML = `
+                    <div class="submission-details">
+                        <p><strong>Abgabe ${submission.id}</strong></p>
+                        <p><strong>Datei:</strong> ${submission.fileName}</p>
+                        <p><strong>Benotung:</strong> ${gradeText}</p>
+                    </div>
+                    <div class="action-buttons">
+                        <a href="/submissions/file/${submission.id}" class="download-button">Herunterladen</a>
+                        ${gradeButton}
+                    </div>
+                `;
+                container.appendChild(submissionElement);
+            });
+        }
+
+        /**
+         * Opens a grading modal and prompts the user to input a grade.
+         * If a grade is provided, the gradeSubmission function is called with the selected grade.
+         * @function
+         * @param {number} submissionId - The ID of the submission to be graded.
+         */
+        function openGradeModal(submissionId) {
+            const grade = prompt("Bitte geben Sie eine Bewertung für die Abgabe ein (1-5):\n1 = Sehr Gut\n2 = Gut\n3 = Befriedigend\n4 = Genügend\n5 = Nicht Genügend");
+            if (grade) {
+                gradeSubmission(submissionId, grade);
+            }
+        }
+
+        /**
+         * Sends a grade for a specific submission to the server.
+         * Maps the grade input from the user to the internal grading format and updates the backend.
+         * @async
+         * @function
+         * @param {number} submissionId - The ID of the submission being graded.
+         * @param {string} grade - The grade input from the user.
+         * @throws Will alert the user and log an error if grading fails.
+         */
+        async function gradeSubmission(submissionId, grade) {
+            try {
+                const gradeMap = {
+                    "1": "SEHR_GUT",
+                    "2": "GUT",
+                    "3": "BEFRIEDIGEND",
+                    "4": "GENUEGEND",
+                    "5": "NICHT_GENUEGEND"
+                };
+                const mappedGrade = gradeMap[grade];
+                if (!mappedGrade) {
+                    alert("Ungültige Note! Bitte eine Zahl zwischen 1 und 5 eingeben.");
+                    return;
+                }
+                const response = await fetch(`/submissions/grading/${submissionId}?grading=${mappedGrade}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                if (!response.ok) {
+                    const errorMessage = await response.text();
+                    throw new Error(`Fehler beim Bewerten der Abgabe: ${errorMessage}`);
+                }
+                alert('Abgabe erfolgreich bewertet!');
+                location.reload();
+            } catch (error) {
+                console.error('Fehler beim Bewerten der Abgabe:', error);
+                alert('Es gab einen Fehler beim Bewerten der Abgabe: ' + error.message);
+            }
+        }
+
+        /**
+         * Initializes the page after the DOM is fully loaded.
+         * Loads the header and fetches user submissions based on the email parameter.
+         * @function
+         */
+        document.addEventListener('DOMContentLoaded', async function () {
+            await loadHeader();
+            const urlParams = new URLSearchParams(window.location.search);
+            const email = urlParams.get('email');
+            if (email) await fetchUserSubmissions(email);
+            else console.error('Keine Benutzer-Email gefunden.');
+        });
+    </script>
+</head>
+<body>
+<div id="header-container"></div>
+<h2>Abgaben</h2>
+
+<div class="content" id="submissions">
+    <div id="submissions-container"></div>
+</div>
+</body>
+</html>
